@@ -5,12 +5,16 @@ MetaWatch over Bluetooth through py-bluez in Linux or Maemo.  Use
 an address of "none" to scan.  If no image is specified, the client
 should at least set the time.
 
-Feel free to fork, rewrite, or fix this is in any way.  Leave whatever
-attribution is appropriate intact.
+You are welcome to fork this in any way, under any license, for any
+reason, so long as a appropriate attribution is kept.
 
 
 Usage:
 python pymw.py $btaddr $image
+
+These URLs are handy,
+http://www.dpin.de/~nils/metawatch
+http://www.metawatch.org/development.html
 
 Image sources:
 
