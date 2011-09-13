@@ -5,8 +5,13 @@
 # This doesn't work with very old versions of the MetaWatch.
 # Be sure to use a minimum of 0.7.15 and 1.1.7.
 
-import bluetooth, sys, time;
+import sys, time;
 
+try:
+   import bluetooth
+except ImportError:
+   bluetooth = None
+   import lightblue
 
 class MetaWatch:
    def __init__(self, watchaddr=None):
@@ -14,11 +19,16 @@ class MetaWatch:
       
       while watchaddr==None or watchaddr=="none":
          print "performing inquiry..."
-         nearby_devices = bluetooth.discover_devices(lookup_names = True)
+         if bluetooth:
+            nearby_devices = bluetooth.discover_devices(lookup_names = True)
+         else:
+            # Need to strip the third "device class" tuple element from results
+            nearby_devices = map(lambda x:x[:2], lightblue.finddevices())
+            
          print "found %d devices" % len(nearby_devices)
          for addr, name in nearby_devices:
             print "  %s - '%s'" % (addr, name)
-            if name=='Fossil Digital Watch V2':
+            if name and 'MetaWatch Digital' in name:
                watchaddr=addr;
          print "Identified Watch at %s" % watchaddr;
 
@@ -27,10 +37,14 @@ class MetaWatch:
       port=1;
       
       print "Connecting to %s on port %i." % (watchaddr, port);
-      sock=bluetooth.BluetoothSocket(bluetooth.RFCOMM);
+      if bluetooth:
+         sock=bluetooth.BluetoothSocket(bluetooth.RFCOMM);
+      else:
+         sock=lightblue.socket();
+
       self.sock=sock;
-      sock.connect((watchaddr,port));
       sock.settimeout(10);  #IMPORTANT Must be patient.
+      sock.connect((watchaddr,port));
       
       #Grab settings from the watch.
       try:
