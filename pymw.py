@@ -237,29 +237,32 @@ def hex(str):
     toret="%s %02x" % (toret,ord(c));
   return toret;
 
+def main(): 
+  watchaddr=None;
+  if len(sys.argv)>1: watchaddr=sys.argv[1];
+  mw=MetaWatch(watchaddr);
 
-watchaddr=None;
-if len(sys.argv)>1: watchaddr=sys.argv[1];
-mw=MetaWatch(watchaddr);
-
-mode=0;
-# Put an image on the display.
-# First, clear the draw buffer to a filled template.
-mw.clearbuffer(mode=mode,filled=True);
+  mode=0;
+  # Put an image on the display.
+  # First, clear the draw buffer to a filled template.
+  mw.clearbuffer(mode=mode,filled=True);
 
 
-imgfile="template.bmp";
-if len(sys.argv)>2:
-   imgfile=sys.argv[2];
+  imgfile="template.bmp";
+  if len(sys.argv)>2:
+     imgfile=sys.argv[2];
 
-#Push a bird into the buffer.
-try:
-   mw.writeimage(mode=mode,image=imgfile,live=True);
-except:
-   print "Error loading image.  Probably not in the working directory.";
+  #Push a bird into the buffer.
+  try:
+     mw.writeimage(mode=mode,image=imgfile,live=True);
+  except:
+     print "Error loading image.  Probably not in the working directory.";
 
-#Test the writing function by writing a checker pattern.
-#mw.testwritebuffer(mode=mode);
+  #Test the writing function by writing a checker pattern.
+  #mw.testwritebuffer(mode=mode);
 
-mw.close();
+  mw.close();
+  
+if __name__ == '__main__':
+  main()
 
