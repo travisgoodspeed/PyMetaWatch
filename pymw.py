@@ -156,10 +156,23 @@ class MetaWatch:
       """Wait a second."""
       #time.sleep(1);
       self.rx();
-   def buzz(self):
+
+   def buzz(self, ms_on=500, ms_off=500, cycles=1):
       """Buzz the buzzer."""
-      print "Warning: I don't yet know how to stop the buzzer!";
-      self.tx("\x23\x00\x02\x00\x02\x00\x01");
+      
+      ms_on = min(ms_on, 65535)
+      ms_off = min(ms_off, 65535)
+      cycles = min(cycles, 256)
+      
+      message = []
+      message.append("\x23\x00\x01")
+      message.append(chr(ms_on % 256))
+      message.append(chr(ms_on / 256))
+      message.append(chr(ms_off % 256))
+      message.append(chr(ms_off / 256))
+      message.append(chr(cycles))
+      self.tx(''.join(message))
+
    def gettype(self):
       """Get the version information."""
       devtyperesp=self.tx("\x01\x00");
