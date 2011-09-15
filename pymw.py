@@ -282,6 +282,8 @@ def main():
   #Push a bird into the buffer.
   try:
      mw.writeimage(mode=mode,image=imgfile,live=True);
+  except ImportError:
+     print "Error, Python Imaging Library (PIL) needs to be installed"
   except:
      print "Error loading image.  Probably not in the working directory.";
 
