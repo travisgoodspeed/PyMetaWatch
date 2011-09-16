@@ -45,16 +45,11 @@ class MetaWatch:
       self.sock=sock;
       sock.settimeout(10);  #IMPORTANT Must be patient.
       sock.connect((watchaddr,port));
-      
-      #Grab settings from the watch.
-      try:
-         print "Connected to %s" % self.getinfo();
-         self.setclock();
-         self.getclock();
-      except:
-         print "Connection probably failed.  Continuing anyways."
+
+      self.setclock()
       #Buzz to indicate connection.
-      #self.buzz();
+      self.buzz();
+
    def close(self):
       """Close the connection."""
       self.sock.close();
@@ -130,6 +125,8 @@ class MetaWatch:
             byte=0;
             for pindex in range(0,8):
                pixel=pix[x+pindex,y];
+               if (pixel > 0):
+                  pixel = 1
                rowstr="%s%i" % (rowstr,pixel);
                #byte=((byte<<1)+pixel);
                byte=((byte>>1)|(pixel<<7));
@@ -138,7 +135,6 @@ class MetaWatch:
          self.writebuffer(mode,
                           y,rowdat)#,
                           #0,rowdat);
-         time.sleep(0.1); #rate limiting helps.
          if live:
             self.updatedisplay(mode=mode);
             time.sleep(0.1);
@@ -171,7 +167,19 @@ class MetaWatch:
       message.append(chr(ms_off % 256))
       message.append(chr(ms_off / 256))
       message.append(chr(cycles))
-      self.tx(''.join(message))
+      self.tx(''.join(message), False)
+
+   def showtime(self, watch_controls_top):
+      """Set whether the watch shows the time at top."""
+
+      message = []
+      message.append("\x42\x00")
+      if watch_controls_top:
+         message.append("\x00")
+      else:
+         message.append("\x01")
+
+      self.tx(''.join(message), False)
 
    def gettype(self):
       """Get the version information."""
