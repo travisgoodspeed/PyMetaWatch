@@ -13,6 +13,27 @@ except ImportError:
    bluetooth = None
    import lightblue
 
+MODE_IDLE = 0
+MODE_APPLICATION = 1
+MODE_NOTIFICATION = 2
+MODE_SCROLL = 3
+
+STATUS_CHANGE_MODE = 0
+STATUS_CHANGE_DISPLAYIMEOUT = 1
+
+BUTTON_A = 0
+BUTTON_B = 1
+BUTTON_C = 2
+BUTTON_D = 3
+BUTTON_E = 5
+BUTTON_F = 6
+
+BUTTON_TYPE_IMMEDIATE = 0
+BUTTON_TYPE_PRESSANDRELEASE = 1
+BUTTON_TYPE_HOLDANDRELEASE = 2
+BUTTON_TYPE_LONHOLDANDRELEASE = 3
+
+
 class MetaWatch:
    def __init__(self, watchaddr=None):
       self.CRC=CRC_CCITT();
@@ -98,6 +119,7 @@ class MetaWatch:
       return;
    def clearbuffer(self,mode=1,filled=True):
       self.loadtemplate(mode,filled);
+   
    def testwritebuffer(self,mode=1):
       m=mode;
       image=["\x00\xFF\x00\xFF\x00\xFF\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00",
@@ -113,6 +135,7 @@ class MetaWatch:
          #self.updatedisplay(mode=m);
          time.sleep(0.1);
       self.updatedisplay(mode=m);
+   
    def writeimage(self,mode=0,image="template.bmp", live=False):
       """Write a 1bpp BMP file to the watch in the given mode."""
       import Image;
@@ -139,19 +162,72 @@ class MetaWatch:
             self.updatedisplay(mode=mode);
             time.sleep(0.1);
       self.updatedisplay(mode=mode);
-   def updatedisplay(self,mode=0,activate=1):
+
+
+   def writeText(self,mode=0,text=''):
+      import Image,ImageDraw,ImageFont
+
+      image = Image.new("1",(96,96))
+      self.draw_word_wrap(image,text,1,1)
+      image.save('tmp.bmp','BMP')
+      self.writeimage(mode,"tmp.bmp",live=True)  
+
+   def draw_word_wrap(self,img, text, xpos=0, ypos=0, max_width=95):
+      import Image,ImageDraw,ImageFont
+      font=ImageFont.load_default()
+        
+      # textwrapping adapted from http://jesselegg.com/archives/2009/09/5/simple-word-wrap-algorithm-pythons-pil/
+      
+      draw = ImageDraw.Draw(img)
+      text_size_x, text_size_y = draw.textsize(text, font=font)
+      remaining = max_width
+      space_width, space_height = draw.textsize(' ', font=font)
+      # use this list as a stack, push/popping each line
+      output_text = []
+      # split on whitespace...    
+      for word in text.split(None):
+        word_width, word_height = draw.textsize(word, font=font)
+        if word_width + space_width > remaining:
+          output_text.append(word)
+          remaining = max_width - word_width
+        else:
+          if not output_text:
+            output_text.append(word)
+          else:
+            output = output_text.pop()
+            output += ' %s' % word
+            output_text.append(output)
+          remaining = remaining - (word_width + space_width)
+      for text in output_text:
+        draw.text((xpos, ypos), text, font=font, fill='white')
+        ypos += text_size_y
+      
+      
+      
+   def updatedisplay(self,mode=0,activate=0):
       """Update the display to a particular mode."""
       if activate: mode=mode|0x10;
       self.tx("\x43%s" % chr(mode),rx=False);
+   
    def loadtemplate(self,mode=0,filled=0):
       """Update the display to a particular mode."""
       self.tx("\x44%s%s" % (chr(mode),
                             chr(filled)),
               rx=False);
+   
+   
    def idle(self):
       """Wait a second."""
       #time.sleep(1);
-      self.rx();
+      data = self.rx();
+      if not data:
+        return
+        
+      cmd = data[0]
+      if cmd == "\x34":
+        # we received a button press
+        buttonIndex = data[1]
+        print "button [%i] pressed" % ord(buttonIndex); 
 
    def buzz(self, ms_on=500, ms_off=500, cycles=1):
       """Buzz the buzzer."""
@@ -229,6 +305,65 @@ class MetaWatch:
       print "%02i:%02i on %02i.%02i.%04i" % (
          hour, minute,
          day, month, year);
+
+  
+   def configureWatchMode(self,mode=0, save=0, displayTimeout=0, invertDisplay=True):
+      msg=[]
+      msg.append("\x41")
+      msg.append(chr(mode))
+      msg.append(chr(displayTimeout))
+      msg.append(chr(invertDisplay))
+
+      self.tx(''.join(msg),rx=False)
+          
+   def enableButton(self, mode=0,buttonIndex=0, type=BUTTON_TYPE_IMMEDIATE):
+      msg=[]
+      msg.append("\x46\x00")
+      msg.append(chr(mode))
+      msg.append(chr(buttonIndex))
+      msg.append(chr(type))
+      msg.append("\x34")
+      msg.append(chr(buttonIndex))
+
+      self.tx(''.join(msg),rx=False)
+   
+   def disableButton(self, mode=0,buttonIndex=0, type=BUTTON_TYPE_IMMEDIATE):
+     msg=[]
+     msg.append("\x47\x00")
+     msg.append(chr(mode))
+     msg.append(chr(buttonIndex))
+     msg.append(chr(type))
+     
+     self.tx(''.join(msg),rx=False)
+        
+   def getButtonConfiguration(self,mode=0,buttonIndex=0):
+      msg=[]
+      msg.append("\x48\x00")
+      msg.append(chr(mode))
+      msg.append(chr(buttonIndex))
+      msg.append("\x00\x00\x00")
+      
+      data = self.tx(''.join(msg))
+       
+      print "button:%i %s" %(buttonIndex, data)
+
+   def getBatteryVoltage(self):
+     str="\x56\x00"
+     data=self.tx(str)
+     volt=ord(data[1])*256+ord(data[0])
+     chargerAttached=ord(data[2])
+     isCharging=ord(data[3])
+     print "battery:%s charger:%s isCharging:%s" %(volt,chargerAttached,isCharging)
+
+   def setDisplayInverted(self, inverted=True):
+     str=""
+     if inverted:
+        str="\x41\x00\x00\x01"
+     else:
+        str="\x41\x00\x00\x00"
+     
+     self.tx(str,rx=False)
+
 class CRC_CCITT:
    def __init__(self, inverted=True):
       self.inverted=inverted;
@@ -277,27 +412,59 @@ def main():
   if len(sys.argv)>1: watchaddr=sys.argv[1];
   mw=MetaWatch(watchaddr);
 
-  mode=0;
-  # Put an image on the display.
+  mode=MODE_IDLE;
+
+
+  mw.getBatteryVoltage()
+
+
+
+  #mw.getButtonConfiguration(mode,0)    
+
+  #mw.configureWatchMode(mode=mode, displayTimeout=20, invertDisplay=False)
+
   # First, clear the draw buffer to a filled template.
   mw.clearbuffer(mode=mode,filled=True);
 
-
-  imgfile="template.bmp";
+  imgfile="010dev.bmp";
   if len(sys.argv)>2:
      imgfile=sys.argv[2];
 
-  #Push a bird into the buffer.
+  mw.updatedisplay(mode)
+  #mw.writeText(mode,"Hello World  Hello World again and again and again and again and again and again...")
+
+#  #Push a bird into the buffer.
+#  try:
+#     mw.writeimage(mode=mode,image=imgfile,live=True);
+#  except ImportError:
+#     print "Error, Python Imaging Library (PIL) needs to be installed"
+#  except:
+#     print "Error loading image.  Probably not in the working directory.";
+
+ 
+  mw.enableButton(mode,BUTTON_A, BUTTON_TYPE_IMMEDIATE)
+  mw.enableButton(mode,BUTTON_B, BUTTON_TYPE_IMMEDIATE)
+  mw.enableButton(mode,BUTTON_C, BUTTON_TYPE_IMMEDIATE)
+  mw.enableButton(mode,BUTTON_D, BUTTON_TYPE_IMMEDIATE)
+  mw.enableButton(mode,BUTTON_E, BUTTON_TYPE_IMMEDIATE)
+  mw.enableButton(mode,BUTTON_F, BUTTON_TYPE_IMMEDIATE)
+  
+  mw.disableButton(mode,BUTTON_A, BUTTON_TYPE_PRESSANDRELEASE)
+  mw.disableButton(mode,BUTTON_B, BUTTON_TYPE_PRESSANDRELEASE)
+  mw.disableButton(mode,BUTTON_C, BUTTON_TYPE_PRESSANDRELEASE)
+
+#mode=0
+# mw.configureWatchMode(mode=mode, displayTimeout=100, invertDisplay=False)
   try:
-     mw.writeimage(mode=mode,image=imgfile,live=True);
-  except ImportError:
-     print "Error, Python Imaging Library (PIL) needs to be installed"
-  except:
-     print "Error loading image.  Probably not in the working directory.";
+    while True:
+      mw.idle()
+  except KeyboardInterrupt:
 
-  #Test the writing function by writing a checker pattern.
-  #mw.testwritebuffer(mode=mode);
-
+    mode=0
+    mw.updatedisplay(mode)
+    pass
+         
+    
   mw.close();
   
 if __name__ == '__main__':
