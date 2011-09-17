@@ -139,6 +139,16 @@ class MetaWatch:
             self.updatedisplay(mode=mode);
             time.sleep(0.1);
       self.updatedisplay(mode=mode);
+
+
+   def writeText(self,mode=0,text=''):
+      import Image,ImageDraw
+      image = Image.new("1",(96,96))
+      draw = ImageDraw.Draw(image)
+      draw.text((1,1),text,fill='white')
+      image.save('tmp.bmp','BMP')
+      self.writeimage(mode,"tmp.bmp",live=True)  
+            
    def updatedisplay(self,mode=0,activate=1):
       """Update the display to a particular mode."""
       if activate: mode=mode|0x10;
@@ -347,14 +357,15 @@ def main():
   if len(sys.argv)>2:
      imgfile=sys.argv[2];
 
-  
-  #Push a bird into the buffer.
-  try:
-     mw.writeimage(mode=mode,image=imgfile,live=True);
-  except ImportError:
-     print "Error, Python Imaging Library (PIL) needs to be installed"
-  except:
-     print "Error loading image.  Probably not in the working directory.";
+
+  mw.writeText(mode,"Hello World")
+#  #Push a bird into the buffer.
+#  try:
+#     mw.writeimage(mode=mode,image=imgfile,live=True);
+#  except ImportError:
+#     print "Error, Python Imaging Library (PIL) needs to be installed"
+#  except:
+#     print "Error loading image.  Probably not in the working directory.";
 
   #Test the writing function by writing a checker pattern.
          #mw.testwritebuffer(mode=mode);
