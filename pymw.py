@@ -161,7 +161,15 @@ class MetaWatch:
    def idle(self):
       """Wait a second."""
       #time.sleep(1);
-      self.rx();
+      data = self.rx();
+      if not data:
+        return
+        
+      cmd = data[0]
+      if cmd == "\x34":
+        # we received a button press
+        buttonIndex = data[1]
+        print "button [%i] pressed" % ord(buttonIndex); 
 
    def buzz(self, ms_on=500, ms_off=500, cycles=1):
       """Buzz the buzzer."""
@@ -346,7 +354,7 @@ def main():
   #mw.getButtonConfiguration(mode,0)    
 
 
-  mw.configureWatchMode(mode=mode, displayTimeout=5, invertDisplay=True)
+  mw.configureWatchMode(mode=mode, displayTimeout=10, invertDisplay=False)
 
   
   # Put an image on the display.
@@ -358,7 +366,7 @@ def main():
      imgfile=sys.argv[2];
 
 
-  mw.writeText(mode,"Hello World")
+  mw.writeText(mode,"Hello World \n Hello World again \n and again")
 #  #Push a bird into the buffer.
 #  try:
 #     mw.writeimage(mode=mode,image=imgfile,live=True);
@@ -370,8 +378,7 @@ def main():
   #Test the writing function by writing a checker pattern.
          #mw.testwritebuffer(mode=mode);
 
-  mode=0
-  mw.configureWatchMode(mode=mode, displayTimeout=0, invertDisplay=False)
+  
 
   mw.enableButton(mode,0)
   mw.enableButton(mode,1)
@@ -379,6 +386,9 @@ def main():
   mw.enableButton(mode,3)
   mw.enableButton(mode,5)
   mw.enableButton(mode,6)
+    
+#mode=0
+# mw.configureWatchMode(mode=mode, displayTimeout=100, invertDisplay=False)
   try:
     while True:
       mw.idle()
