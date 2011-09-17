@@ -142,13 +142,45 @@ class MetaWatch:
 
 
    def writeText(self,mode=0,text=''):
-      import Image,ImageDraw
+      import Image,ImageDraw,ImageFont
+
       image = Image.new("1",(96,96))
-      draw = ImageDraw.Draw(image)
-      draw.text((1,1),text,fill='white')
+      self.draw_word_wrap(image,text,1,1)
       image.save('tmp.bmp','BMP')
       self.writeimage(mode,"tmp.bmp",live=True)  
-            
+
+   def draw_word_wrap(self,img, text, xpos=0, ypos=0, max_width=95):
+      import Image,ImageDraw,ImageFont
+      font=ImageFont.load_default()
+        
+      # textwrapping adapted from http://jesselegg.com/archives/2009/09/5/simple-word-wrap-algorithm-pythons-pil/
+      
+      draw = ImageDraw.Draw(img)
+      text_size_x, text_size_y = draw.textsize(text, font=font)
+      remaining = max_width
+      space_width, space_height = draw.textsize(' ', font=font)
+      # use this list as a stack, push/popping each line
+      output_text = []
+      # split on whitespace...    
+      for word in text.split(None):
+        word_width, word_height = draw.textsize(word, font=font)
+        if word_width + space_width > remaining:
+          output_text.append(word)
+          remaining = max_width - word_width
+        else:
+          if not output_text:
+            output_text.append(word)
+          else:
+            output = output_text.pop()
+            output += ' %s' % word
+            output_text.append(output)
+          remaining = remaining - (word_width + space_width)
+      for text in output_text:
+        draw.text((xpos, ypos), text, font=font, fill='white')
+        ypos += text_size_y
+      
+      
+      
    def updatedisplay(self,mode=0,activate=1):
       """Update the display to a particular mode."""
       if activate: mode=mode|0x10;
@@ -354,7 +386,7 @@ def main():
   #mw.getButtonConfiguration(mode,0)    
 
 
-  mw.configureWatchMode(mode=mode, displayTimeout=10, invertDisplay=False)
+  mw.configureWatchMode(mode=mode, displayTimeout=20, invertDisplay=False)
 
   
   # Put an image on the display.
@@ -366,7 +398,7 @@ def main():
      imgfile=sys.argv[2];
 
 
-  mw.writeText(mode,"Hello World \n Hello World again \n and again")
+  mw.writeText(mode,"Hello World  Hello World again and again and again and again and again and again...")
 #  #Push a bird into the buffer.
 #  try:
 #     mw.writeimage(mode=mode,image=imgfile,live=True);
