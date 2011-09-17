@@ -84,7 +84,7 @@ class MetaWatch:
       """Transmit a MetaWatch packet.  SFD, Length, and Checksum will be added."""
       time_since_last_tx = time.clock() - self._last_tx_time
       if time_since_last_tx < self._TX_PACKET_WAIT_SEC:
-         time.sleep(self._TX_PACKET_WAIT_SEC - time_since_last_txt)
+         time.sleep(self._TX_PACKET_WAIT_SEC - time_since_last_tx)
       
       #Prepend SFD, length.
       msg="\x01"+chr(len(msg)+4)+msg;
