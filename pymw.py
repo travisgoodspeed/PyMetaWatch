@@ -229,6 +229,55 @@ class MetaWatch:
       print "%02i:%02i on %02i.%02i.%04i" % (
          hour, minute,
          day, month, year);
+
+  
+   def configureWatchMode(self,mode=0, save=0, displayTimeout=0, invertDisplay=True):
+      msg=[]
+      msg.append("\x41")
+      msg.append(chr(mode))
+      msg.append(chr(displayTimeout))
+      msg.append(chr(invertDisplay))
+
+      self.tx(''.join(msg),rx=False)
+          
+   def enableButton(self, mode=0,buttonIndex=0):
+      msg=[]
+      msg.append("\x46\x00")
+      msg.append(chr(mode))
+      msg.append(chr(buttonIndex))
+      msg.append("\x00\x34")
+      msg.append(chr(buttonIndex))
+
+      self.tx(''.join(msg),rx=False)
+        
+   def getButtonConfiguration(self,mode=0,buttonIndex=0):
+      msg=[]
+      msg.append("\x48\x00")
+      msg.append(chr(mode))
+      msg.append(chr(buttonIndex))
+      msg.append("\x00\x00\x00")
+      
+      data = self.tx(''.join(msg))
+       
+      print "button:%i %s" %(buttonIndex, data)
+
+   def getBatteryVoltage(self):
+     str="\x56\x00"
+     data=self.tx(str)
+     volt=ord(data[1])*256+ord(data[0])
+     chargerAttached=ord(data[2])
+     isCharging=ord(data[3])
+     print "battery:%s charger:%s isCharging:%s" %(volt,chargerAttached,isCharging)
+
+   def setDisplayInverted(self, inverted=True):
+     str=""
+     if inverted:
+        str="\x41\x00\x00\x01"
+     else:
+        str="\x41\x00\x00\x00"
+     
+     self.tx(str,rx=False)
+
 class CRC_CCITT:
    def __init__(self, inverted=True):
       self.inverted=inverted;
@@ -277,16 +326,28 @@ def main():
   if len(sys.argv)>1: watchaddr=sys.argv[1];
   mw=MetaWatch(watchaddr);
 
-  mode=0;
+  mode=1;
+
+
+  mw.getBatteryVoltage()
+
+
+
+  #mw.getButtonConfiguration(mode,0)    
+
+
+  mw.configureWatchMode(mode=mode, displayTimeout=5, invertDisplay=True)
+
+  
   # Put an image on the display.
   # First, clear the draw buffer to a filled template.
   mw.clearbuffer(mode=mode,filled=True);
 
-
-  imgfile="template.bmp";
+  imgfile="010dev.bmp";
   if len(sys.argv)>2:
      imgfile=sys.argv[2];
 
+  
   #Push a bird into the buffer.
   try:
      mw.writeimage(mode=mode,image=imgfile,live=True);
@@ -296,8 +357,24 @@ def main():
      print "Error loading image.  Probably not in the working directory.";
 
   #Test the writing function by writing a checker pattern.
-  #mw.testwritebuffer(mode=mode);
+         #mw.testwritebuffer(mode=mode);
 
+  mode=0
+  mw.configureWatchMode(mode=mode, displayTimeout=0, invertDisplay=False)
+
+  mw.enableButton(mode,0)
+  mw.enableButton(mode,1)
+  mw.enableButton(mode,2)
+  mw.enableButton(mode,3)
+  mw.enableButton(mode,5)
+  mw.enableButton(mode,6)
+  try:
+    while True:
+      mw.idle()
+  except KeyboardInterrupt:
+    pass
+         
+    
   mw.close();
   
 if __name__ == '__main__':
