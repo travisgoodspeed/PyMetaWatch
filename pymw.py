@@ -13,6 +13,27 @@ except ImportError:
    bluetooth = None
    import lightblue
 
+MODE_IDLE = 0
+MODE_APPLICATION = 1
+MODE_NOTIFICATION = 2
+MODE_SCROLL = 3
+
+STATUS_CHANGE_MODE = 0
+STATUS_CHANGE_DISPLAYIMEOUT = 1
+
+BUTTON_A = 0
+BUTTON_B = 1
+BUTTON_C = 2
+BUTTON_D = 3
+BUTTON_E = 5
+BUTTON_F = 6
+
+BUTTON_TYPE_IMMEDIATE = 0
+BUTTON_TYPE_PRESSANDRELEASE = 1
+BUTTON_TYPE_HOLDANDRELEASE = 2
+BUTTON_TYPE_LONHOLDANDRELEASE = 3
+
+
 class MetaWatch:
    def __init__(self, watchaddr=None):
       self.CRC=CRC_CCITT();
@@ -98,6 +119,7 @@ class MetaWatch:
       return;
    def clearbuffer(self,mode=1,filled=True):
       self.loadtemplate(mode,filled);
+   
    def testwritebuffer(self,mode=1):
       m=mode;
       image=["\x00\xFF\x00\xFF\x00\xFF\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00",
@@ -113,6 +135,7 @@ class MetaWatch:
          #self.updatedisplay(mode=m);
          time.sleep(0.1);
       self.updatedisplay(mode=m);
+   
    def writeimage(self,mode=0,image="template.bmp", live=False):
       """Write a 1bpp BMP file to the watch in the given mode."""
       import Image;
@@ -181,15 +204,18 @@ class MetaWatch:
       
       
       
-   def updatedisplay(self,mode=0,activate=1):
+   def updatedisplay(self,mode=0,activate=0):
       """Update the display to a particular mode."""
       if activate: mode=mode|0x10;
       self.tx("\x43%s" % chr(mode),rx=False);
+   
    def loadtemplate(self,mode=0,filled=0):
       """Update the display to a particular mode."""
       self.tx("\x44%s%s" % (chr(mode),
                             chr(filled)),
               rx=False);
+   
+   
    def idle(self):
       """Wait a second."""
       #time.sleep(1);
@@ -290,15 +316,25 @@ class MetaWatch:
 
       self.tx(''.join(msg),rx=False)
           
-   def enableButton(self, mode=0,buttonIndex=0):
+   def enableButton(self, mode=0,buttonIndex=0, type=BUTTON_TYPE_IMMEDIATE):
       msg=[]
       msg.append("\x46\x00")
       msg.append(chr(mode))
       msg.append(chr(buttonIndex))
-      msg.append("\x00\x34")
+      msg.append(chr(type))
+      msg.append("\x34")
       msg.append(chr(buttonIndex))
 
       self.tx(''.join(msg),rx=False)
+   
+   def disableButton(self, mode=0,buttonIndex=0, type=BUTTON_TYPE_IMMEDIATE):
+     msg=[]
+     msg.append("\x47\x00")
+     msg.append(chr(mode))
+     msg.append(chr(buttonIndex))
+     msg.append(chr(type))
+     
+     self.tx(''.join(msg),rx=False)
         
    def getButtonConfiguration(self,mode=0,buttonIndex=0):
       msg=[]
@@ -376,7 +412,7 @@ def main():
   if len(sys.argv)>1: watchaddr=sys.argv[1];
   mw=MetaWatch(watchaddr);
 
-  mode=1;
+  mode=MODE_IDLE;
 
 
   mw.getBatteryVoltage()
@@ -385,11 +421,8 @@ def main():
 
   #mw.getButtonConfiguration(mode,0)    
 
+  #mw.configureWatchMode(mode=mode, displayTimeout=20, invertDisplay=False)
 
-  mw.configureWatchMode(mode=mode, displayTimeout=20, invertDisplay=False)
-
-  
-  # Put an image on the display.
   # First, clear the draw buffer to a filled template.
   mw.clearbuffer(mode=mode,filled=True);
 
@@ -397,8 +430,9 @@ def main():
   if len(sys.argv)>2:
      imgfile=sys.argv[2];
 
+  mw.updatedisplay(mode)
+  #mw.writeText(mode,"Hello World  Hello World again and again and again and again and again and again...")
 
-  mw.writeText(mode,"Hello World  Hello World again and again and again and again and again and again...")
 #  #Push a bird into the buffer.
 #  try:
 #     mw.writeimage(mode=mode,image=imgfile,live=True);
@@ -407,24 +441,27 @@ def main():
 #  except:
 #     print "Error loading image.  Probably not in the working directory.";
 
-  #Test the writing function by writing a checker pattern.
-         #mw.testwritebuffer(mode=mode);
-
+ 
+  mw.enableButton(mode,BUTTON_A, BUTTON_TYPE_IMMEDIATE)
+  mw.enableButton(mode,BUTTON_B, BUTTON_TYPE_IMMEDIATE)
+  mw.enableButton(mode,BUTTON_C, BUTTON_TYPE_IMMEDIATE)
+  mw.enableButton(mode,BUTTON_D, BUTTON_TYPE_IMMEDIATE)
+  mw.enableButton(mode,BUTTON_E, BUTTON_TYPE_IMMEDIATE)
+  mw.enableButton(mode,BUTTON_F, BUTTON_TYPE_IMMEDIATE)
   
+  mw.disableButton(mode,BUTTON_A, BUTTON_TYPE_PRESSANDRELEASE)
+  mw.disableButton(mode,BUTTON_B, BUTTON_TYPE_PRESSANDRELEASE)
+  mw.disableButton(mode,BUTTON_C, BUTTON_TYPE_PRESSANDRELEASE)
 
-  mw.enableButton(mode,0)
-  mw.enableButton(mode,1)
-  mw.enableButton(mode,2)
-  mw.enableButton(mode,3)
-  mw.enableButton(mode,5)
-  mw.enableButton(mode,6)
-    
 #mode=0
 # mw.configureWatchMode(mode=mode, displayTimeout=100, invertDisplay=False)
   try:
     while True:
       mw.idle()
   except KeyboardInterrupt:
+
+    mode=0
+    mw.updatedisplay(mode)
     pass
          
     
