@@ -35,8 +35,12 @@ BUTTON_TYPE_LONHOLDANDRELEASE = 3
 
 
 class MetaWatch:
+   # Time to pause between packets, per Javier's empirical values.
+   _TX_PACKET_WAIT_SEC = 0.025
+   
    def __init__(self, watchaddr=None):
       self.CRC=CRC_CCITT();
+      self._last_tx_time = time.clock()
       
       while watchaddr==None or watchaddr=="none":
          print "performing inquiry..."
@@ -78,6 +82,10 @@ class MetaWatch:
    verbose=1;
    def tx(self,msg,rx=True):
       """Transmit a MetaWatch packet.  SFD, Length, and Checksum will be added."""
+      time_since_last_tx = time.clock() - self._last_tx_time
+      if time_since_last_tx < self._TX_PACKET_WAIT_SEC:
+         time.sleep(self._TX_PACKET_WAIT_SEC - time_since_last_txt)
+      
       #Prepend SFD, length.
       msg="\x01"+chr(len(msg)+4)+msg;
       #Append CRC.
@@ -85,6 +93,7 @@ class MetaWatch:
       msg=msg+chr(crc&0xFF)+chr(crc>>8); #Little Endian
       
       self.sock.send(msg);
+      self._last_txt_time = time.clock()
       if self.verbose: print "Sent message: %s" % hex(msg);
       
       if not rx: return None;
@@ -133,7 +142,6 @@ class MetaWatch:
                         #);
                         ,foo+40, image[((foo+40)/8)%2]);
          #self.updatedisplay(mode=m);
-         time.sleep(0.1);
       self.updatedisplay(mode=m);
    
    def writeimage(self,mode=0,image="template.bmp", live=False):
@@ -160,7 +168,6 @@ class MetaWatch:
                           #0,rowdat);
          if live:
             self.updatedisplay(mode=mode);
-            time.sleep(0.1);
       self.updatedisplay(mode=mode);
 
 
