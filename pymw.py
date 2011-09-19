@@ -5,20 +5,55 @@
 # This doesn't work with very old versions of the MetaWatch.
 # Be sure to use a minimum of 0.7.15 and 1.1.7.
 
-import bluetooth, sys, time;
+import sys, time;
+
+try:
+   import bluetooth
+except ImportError:
+   bluetooth = None
+   import lightblue
+
+MODE_IDLE = 0
+MODE_APPLICATION = 1
+MODE_NOTIFICATION = 2
+MODE_SCROLL = 3
+
+STATUS_CHANGE_MODE = 0
+STATUS_CHANGE_DISPLAYIMEOUT = 1
+
+BUTTON_A = 0
+BUTTON_B = 1
+BUTTON_C = 2
+BUTTON_D = 3
+BUTTON_E = 5
+BUTTON_F = 6
+
+BUTTON_TYPE_IMMEDIATE = 0
+BUTTON_TYPE_PRESSANDRELEASE = 1
+BUTTON_TYPE_HOLDANDRELEASE = 2
+BUTTON_TYPE_LONHOLDANDRELEASE = 3
 
 
 class MetaWatch:
+   # Time to pause between packets, per Javier's empirical values.
+   _TX_PACKET_WAIT_SEC = 0.025
+   
    def __init__(self, watchaddr=None):
       self.CRC=CRC_CCITT();
+      self._last_tx_time = time.clock()
       
       while watchaddr==None or watchaddr=="none":
          print "performing inquiry..."
-         nearby_devices = bluetooth.discover_devices(lookup_names = True)
+         if bluetooth:
+            nearby_devices = bluetooth.discover_devices(lookup_names = True)
+         else:
+            # Need to strip the third "device class" tuple element from results
+            nearby_devices = map(lambda x:x[:2], lightblue.finddevices())
+            
          print "found %d devices" % len(nearby_devices)
          for addr, name in nearby_devices:
             print "  %s - '%s'" % (addr, name)
-            if name=='Fossil Digital Watch V2':
+            if name and 'MetaWatch Digital' in name:
                watchaddr=addr;
          print "Identified Watch at %s" % watchaddr;
 
@@ -27,20 +62,19 @@ class MetaWatch:
       port=1;
       
       print "Connecting to %s on port %i." % (watchaddr, port);
-      sock=bluetooth.BluetoothSocket(bluetooth.RFCOMM);
+      if bluetooth:
+         sock=bluetooth.BluetoothSocket(bluetooth.RFCOMM);
+      else:
+         sock=lightblue.socket();
+
       self.sock=sock;
-      sock.connect((watchaddr,port));
       sock.settimeout(10);  #IMPORTANT Must be patient.
-      
-      #Grab settings from the watch.
-      try:
-         print "Connected to %s" % self.getinfo();
-         self.setclock();
-         self.getclock();
-      except:
-         print "Connection probably failed.  Continuing anyways."
+      sock.connect((watchaddr,port));
+
+      self.setclock()
       #Buzz to indicate connection.
-      #self.buzz();
+      self.buzz();
+
    def close(self):
       """Close the connection."""
       self.sock.close();
@@ -48,6 +82,10 @@ class MetaWatch:
    verbose=1;
    def tx(self,msg,rx=True):
       """Transmit a MetaWatch packet.  SFD, Length, and Checksum will be added."""
+      time_since_last_tx = time.clock() - self._last_tx_time
+      if time_since_last_tx < self._TX_PACKET_WAIT_SEC:
+         time.sleep(self._TX_PACKET_WAIT_SEC - time_since_last_tx)
+      
       #Prepend SFD, length.
       msg="\x01"+chr(len(msg)+4)+msg;
       #Append CRC.
@@ -55,6 +93,7 @@ class MetaWatch:
       msg=msg+chr(crc&0xFF)+chr(crc>>8); #Little Endian
       
       self.sock.send(msg);
+      self._last_txt_time = time.clock()
       if self.verbose: print "Sent message: %s" % hex(msg);
       
       if not rx: return None;
@@ -89,6 +128,7 @@ class MetaWatch:
       return;
    def clearbuffer(self,mode=1,filled=True):
       self.loadtemplate(mode,filled);
+   
    def testwritebuffer(self,mode=1):
       m=mode;
       image=["\x00\xFF\x00\xFF\x00\xFF\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00",
@@ -102,8 +142,8 @@ class MetaWatch:
                         #);
                         ,foo+40, image[((foo+40)/8)%2]);
          #self.updatedisplay(mode=m);
-         time.sleep(0.1);
       self.updatedisplay(mode=m);
+   
    def writeimage(self,mode=0,image="template.bmp", live=False):
       """Write a 1bpp BMP file to the watch in the given mode."""
       import Image;
@@ -116,6 +156,8 @@ class MetaWatch:
             byte=0;
             for pindex in range(0,8):
                pixel=pix[x+pindex,y];
+               if (pixel > 0):
+                  pixel = 1
                rowstr="%s%i" % (rowstr,pixel);
                #byte=((byte<<1)+pixel);
                byte=((byte>>1)|(pixel<<7));
@@ -124,28 +166,104 @@ class MetaWatch:
          self.writebuffer(mode,
                           y,rowdat)#,
                           #0,rowdat);
-         time.sleep(0.1); #rate limiting helps.
          if live:
             self.updatedisplay(mode=mode);
-            time.sleep(0.1);
       self.updatedisplay(mode=mode);
-   def updatedisplay(self,mode=0,activate=1):
+
+
+   def writeText(self,mode=0,text=''):
+      import Image,ImageDraw,ImageFont
+
+      image = Image.new("1",(96,96))
+      self.draw_word_wrap(image,text,1,1)
+      image.save('tmp.bmp','BMP')
+      self.writeimage(mode,"tmp.bmp",live=True)  
+
+   def draw_word_wrap(self,img, text, xpos=0, ypos=0, max_width=95):
+      import Image,ImageDraw,ImageFont
+      font=ImageFont.load_default()
+        
+      # textwrapping adapted from http://jesselegg.com/archives/2009/09/5/simple-word-wrap-algorithm-pythons-pil/
+      
+      draw = ImageDraw.Draw(img)
+      text_size_x, text_size_y = draw.textsize(text, font=font)
+      remaining = max_width
+      space_width, space_height = draw.textsize(' ', font=font)
+      # use this list as a stack, push/popping each line
+      output_text = []
+      # split on whitespace...    
+      for word in text.split(None):
+        word_width, word_height = draw.textsize(word, font=font)
+        if word_width + space_width > remaining:
+          output_text.append(word)
+          remaining = max_width - word_width
+        else:
+          if not output_text:
+            output_text.append(word)
+          else:
+            output = output_text.pop()
+            output += ' %s' % word
+            output_text.append(output)
+          remaining = remaining - (word_width + space_width)
+      for text in output_text:
+        draw.text((xpos, ypos), text, font=font, fill='white')
+        ypos += text_size_y
+      
+      
+      
+   def updatedisplay(self,mode=0,activate=0):
       """Update the display to a particular mode."""
       if activate: mode=mode|0x10;
       self.tx("\x43%s" % chr(mode),rx=False);
+   
    def loadtemplate(self,mode=0,filled=0):
       """Update the display to a particular mode."""
       self.tx("\x44%s%s" % (chr(mode),
                             chr(filled)),
               rx=False);
+   
+   
    def idle(self):
       """Wait a second."""
       #time.sleep(1);
-      self.rx();
-   def buzz(self):
+      data = self.rx();
+      if not data:
+        return
+        
+      cmd = data[0]
+      if cmd == "\x34":
+        # we received a button press
+        buttonIndex = data[1]
+        print "button [%i] pressed" % ord(buttonIndex); 
+
+   def buzz(self, ms_on=500, ms_off=500, cycles=1):
       """Buzz the buzzer."""
-      print "Warning: I don't yet know how to stop the buzzer!";
-      self.tx("\x23\x00\x02\x00\x02\x00\x01");
+      
+      ms_on = min(ms_on, 65535)
+      ms_off = min(ms_off, 65535)
+      cycles = min(cycles, 256)
+      
+      message = []
+      message.append("\x23\x00\x01")
+      message.append(chr(ms_on % 256))
+      message.append(chr(ms_on / 256))
+      message.append(chr(ms_off % 256))
+      message.append(chr(ms_off / 256))
+      message.append(chr(cycles))
+      self.tx(''.join(message), False)
+
+   def showtime(self, watch_controls_top):
+      """Set whether the watch shows the time at top."""
+
+      message = []
+      message.append("\x42\x00")
+      if watch_controls_top:
+         message.append("\x00")
+      else:
+         message.append("\x01")
+
+      self.tx(''.join(message), False)
+
    def gettype(self):
       """Get the version information."""
       devtyperesp=self.tx("\x01\x00");
@@ -194,6 +312,65 @@ class MetaWatch:
       print "%02i:%02i on %02i.%02i.%04i" % (
          hour, minute,
          day, month, year);
+
+  
+   def configureWatchMode(self,mode=0, save=0, displayTimeout=0, invertDisplay=True):
+      msg=[]
+      msg.append("\x41")
+      msg.append(chr(mode))
+      msg.append(chr(displayTimeout))
+      msg.append(chr(invertDisplay))
+
+      self.tx(''.join(msg),rx=False)
+          
+   def enableButton(self, mode=0,buttonIndex=0, type=BUTTON_TYPE_IMMEDIATE):
+      msg=[]
+      msg.append("\x46\x00")
+      msg.append(chr(mode))
+      msg.append(chr(buttonIndex))
+      msg.append(chr(type))
+      msg.append("\x34")
+      msg.append(chr(buttonIndex))
+
+      self.tx(''.join(msg),rx=False)
+   
+   def disableButton(self, mode=0,buttonIndex=0, type=BUTTON_TYPE_IMMEDIATE):
+     msg=[]
+     msg.append("\x47\x00")
+     msg.append(chr(mode))
+     msg.append(chr(buttonIndex))
+     msg.append(chr(type))
+     
+     self.tx(''.join(msg),rx=False)
+        
+   def getButtonConfiguration(self,mode=0,buttonIndex=0):
+      msg=[]
+      msg.append("\x48\x00")
+      msg.append(chr(mode))
+      msg.append(chr(buttonIndex))
+      msg.append("\x00\x00\x00")
+      
+      data = self.tx(''.join(msg))
+       
+      print "button:%i %s" %(buttonIndex, data)
+
+   def getBatteryVoltage(self):
+     str="\x56\x00"
+     data=self.tx(str)
+     volt=ord(data[1])*256+ord(data[0])
+     chargerAttached=ord(data[2])
+     isCharging=ord(data[3])
+     print "battery:%s charger:%s isCharging:%s" %(volt,chargerAttached,isCharging)
+
+   def setDisplayInverted(self, inverted=True):
+     str=""
+     if inverted:
+        str="\x41\x00\x00\x01"
+     else:
+        str="\x41\x00\x00\x00"
+     
+     self.tx(str,rx=False)
+
 class CRC_CCITT:
    def __init__(self, inverted=True):
       self.inverted=inverted;
@@ -237,29 +414,66 @@ def hex(str):
     toret="%s %02x" % (toret,ord(c));
   return toret;
 
+def main(): 
+  watchaddr=None;
+  if len(sys.argv)>1: watchaddr=sys.argv[1];
+  mw=MetaWatch(watchaddr);
 
-watchaddr=None;
-if len(sys.argv)>1: watchaddr=sys.argv[1];
-mw=MetaWatch(watchaddr);
-
-mode=0;
-# Put an image on the display.
-# First, clear the draw buffer to a filled template.
-mw.clearbuffer(mode=mode,filled=True);
+  mode=MODE_IDLE;
 
 
-imgfile="template.bmp";
-if len(sys.argv)>2:
-   imgfile=sys.argv[2];
+  mw.getBatteryVoltage()
 
-#Push a bird into the buffer.
-try:
-   mw.writeimage(mode=mode,image=imgfile,live=True);
-except:
-   print "Error loading image.  Probably not in the working directory.";
 
-#Test the writing function by writing a checker pattern.
-#mw.testwritebuffer(mode=mode);
 
-mw.close();
+  #mw.getButtonConfiguration(mode,0)    
+
+  #mw.configureWatchMode(mode=mode, displayTimeout=20, invertDisplay=False)
+
+  # First, clear the draw buffer to a filled template.
+  mw.clearbuffer(mode=mode,filled=True);
+
+  imgfile="010dev.bmp";
+  if len(sys.argv)>2:
+     imgfile=sys.argv[2];
+
+  mw.updatedisplay(mode)
+  #mw.writeText(mode,"Hello World  Hello World again and again and again and again and again and again...")
+
+#  #Push a bird into the buffer.
+#  try:
+#     mw.writeimage(mode=mode,image=imgfile,live=True);
+#  except ImportError:
+#     print "Error, Python Imaging Library (PIL) needs to be installed"
+#  except:
+#     print "Error loading image.  Probably not in the working directory.";
+
+ 
+  mw.enableButton(mode,BUTTON_A, BUTTON_TYPE_IMMEDIATE)
+  mw.enableButton(mode,BUTTON_B, BUTTON_TYPE_IMMEDIATE)
+  mw.enableButton(mode,BUTTON_C, BUTTON_TYPE_IMMEDIATE)
+  mw.enableButton(mode,BUTTON_D, BUTTON_TYPE_IMMEDIATE)
+  mw.enableButton(mode,BUTTON_E, BUTTON_TYPE_IMMEDIATE)
+  mw.enableButton(mode,BUTTON_F, BUTTON_TYPE_IMMEDIATE)
+  
+  mw.disableButton(mode,BUTTON_A, BUTTON_TYPE_PRESSANDRELEASE)
+  mw.disableButton(mode,BUTTON_B, BUTTON_TYPE_PRESSANDRELEASE)
+  mw.disableButton(mode,BUTTON_C, BUTTON_TYPE_PRESSANDRELEASE)
+
+#mode=0
+# mw.configureWatchMode(mode=mode, displayTimeout=100, invertDisplay=False)
+  try:
+    while True:
+      mw.idle()
+  except KeyboardInterrupt:
+
+    mode=0
+    mw.updatedisplay(mode)
+    pass
+         
+    
+  mw.close();
+  
+if __name__ == '__main__':
+  main()
 
