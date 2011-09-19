@@ -37,8 +37,8 @@ BUTTON_TYPE_LONHOLDANDRELEASE = 3
 class MetaWatch:
    # Time to pause between packets
    #_TX_PACKET_WAIT_SEC = 0.025 #per Javier's empirical values.
-   #_TX_PACKET_WAIT_SEC = 0.2
-   _TX_PACKET_WAIT_SEC = 0.1   #per Goodspeed's less optimistic values.
+   _TX_PACKET_WAIT_SEC = 0.2
+   #_TX_PACKET_WAIT_SEC = 0.1   #per Goodspeed's less optimistic values.
    
    def __init__(self, watchaddr=None):
       self.CRC=CRC_CCITT();
@@ -98,8 +98,8 @@ class MetaWatch:
       crc=self.CRC.checksum(msg);
       msg=msg+chr(crc&0xFF)+chr(crc>>8); #Little Endian
       
-      self._last_txt_time = time.clock()
       self.sock.sendall(msg);
+      self._last_txt_time = time.clock()
       
       if self.verbose: print "Sent message: %s" % hex(msg);
       
