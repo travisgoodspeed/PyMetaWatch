@@ -68,9 +68,11 @@ class MetaWatch:
          sock=lightblue.socket();
 
       self.sock=sock;
-      sock.settimeout(10);  #IMPORTANT Must be patient.
       sock.connect((watchaddr,port));
-
+      sock.settimeout(10);            # IMPORTANT Must be patient, must come after connect().
+      
+      
+      
       self.setclock()
       #Buzz to indicate connection.
       self.buzz();
