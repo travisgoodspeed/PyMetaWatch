@@ -53,7 +53,7 @@ class MetaWatch:
          print "found %d devices" % len(nearby_devices)
          for addr, name in nearby_devices:
             print "  %s - '%s'" % (addr, name)
-            if name and 'MetaWatch Digital' in name:
+            if name and ('MetaWatch Digital' in name or 'Fossil Digital' in name) :
                watchaddr=addr;
          print "Identified Watch at %s" % watchaddr;
 
