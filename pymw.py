@@ -37,7 +37,8 @@ BUTTON_TYPE_LONHOLDANDRELEASE = 3
 class MetaWatch:
    # Time to pause between packets
    #_TX_PACKET_WAIT_SEC = 0.025 #per Javier's empirical values.
-   _TX_PACKET_WAIT_SEC = 0.15   #per Goodspeed's less optimistic values.
+   #_TX_PACKET_WAIT_SEC = 0.2
+   _TX_PACKET_WAIT_SEC = 0.1   #per Goodspeed's less optimistic values.
    
    def __init__(self, watchaddr=None):
       self.CRC=CRC_CCITT();
@@ -73,6 +74,8 @@ class MetaWatch:
       sock.settimeout(10);            # IMPORTANT Must be patient, must come after connect().
       
       
+      #sock.setblocking(False);
+      
       
       self.setclock()
       #Buzz to indicate connection.
@@ -95,8 +98,9 @@ class MetaWatch:
       crc=self.CRC.checksum(msg);
       msg=msg+chr(crc&0xFF)+chr(crc>>8); #Little Endian
       
-      self.sock.send(msg);
       self._last_txt_time = time.clock()
+      self.sock.sendall(msg);
+      
       if self.verbose: print "Sent message: %s" % hex(msg);
       
       if not rx: return None;
@@ -216,6 +220,7 @@ class MetaWatch:
    def updatedisplay(self,mode=0,activate=0):
       """Update the display to a particular mode."""
       if activate: mode=mode|0x10;
+      #time.sleep(0.1); #rate limiting is necessary here.
       self.tx("\x43%s" % chr(mode),rx=False);
    
    def loadtemplate(self,mode=0,filled=0):
@@ -435,14 +440,14 @@ def main():
   # First, clear the draw buffer to a filled template.
   mw.clearbuffer(mode=mode,filled=True);
 
-  imgfile="010dev.bmp";
+  imgfile="test.bmp";
   if len(sys.argv)>2:
      imgfile=sys.argv[2];
 
   mw.updatedisplay(mode)
   #mw.writeText(mode,"Hello World  Hello World again and again and again and again and again and again...")
 
-  #Push a bird into the buffer.
+  #Push an image into the buffer.
   try:
      mw.writeimage(mode=mode,image=imgfile,live=True);
   except ImportError:
