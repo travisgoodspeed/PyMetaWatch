@@ -35,8 +35,9 @@ BUTTON_TYPE_LONHOLDANDRELEASE = 3
 
 
 class MetaWatch:
-   # Time to pause between packets, per Javier's empirical values.
-   _TX_PACKET_WAIT_SEC = 0.025
+   # Time to pause between packets
+   #_TX_PACKET_WAIT_SEC = 0.025 #per Javier's empirical values.
+   _TX_PACKET_WAIT_SEC = 0.15   #per Goodspeed's less optimistic values.
    
    def __init__(self, watchaddr=None):
       self.CRC=CRC_CCITT();
@@ -113,7 +114,6 @@ class MetaWatch:
    def writebuffer(self,mode,row1,data1,row2=None,data2=None):
       """Writes image data to the Draw Buffer.
       You'll need to send activatedisplay() to swap things over when done."""
-      
       option=mode; #idle screen, single row.
       if row2!=None: option=option|0x10;
       
@@ -442,13 +442,13 @@ def main():
   mw.updatedisplay(mode)
   #mw.writeText(mode,"Hello World  Hello World again and again and again and again and again and again...")
 
-#  #Push a bird into the buffer.
-#  try:
-#     mw.writeimage(mode=mode,image=imgfile,live=True);
-#  except ImportError:
-#     print "Error, Python Imaging Library (PIL) needs to be installed"
-#  except:
-#     print "Error loading image.  Probably not in the working directory.";
+  #Push a bird into the buffer.
+  try:
+     mw.writeimage(mode=mode,image=imgfile,live=True);
+  except ImportError:
+     print "Error, Python Imaging Library (PIL) needs to be installed"
+  except:
+     print "Error loading image.  Probably not in the working directory.";
 
  
   mw.enableButton(mode,BUTTON_A, BUTTON_TYPE_IMMEDIATE)
