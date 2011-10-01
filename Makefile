@@ -1,3 +1,3 @@
 run:
-	python pymw.py C0:E4:22:86:46:93 dalek.bmp
+	python pymw.py D0:37:61:C3:A1:7B dalek.bmp
 
